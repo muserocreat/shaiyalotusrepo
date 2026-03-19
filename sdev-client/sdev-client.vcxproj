@@ -105,6 +105,7 @@
     <ClCompile Include="src\vehicle.cpp" />
     <ClCompile Include="src\weapon_step.cpp" />
     <ClCompile Include="src\window.cpp" />
+    <ClCompile Include="src\target.cpp" />
     <ClCompile Include="src\window_title.cpp" />
   </ItemGroup>
   <ItemGroup>

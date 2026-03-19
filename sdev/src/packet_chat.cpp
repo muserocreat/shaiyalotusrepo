@@ -1,62 +1,127 @@
 #include <util/util.h>
 #include "include/main.h"
 #include "include/shaiya/CUser.h"
-#include "include/shaiya/DynamicDrop.h"
+#include "include/shaiya/CParty.h"
+#include "include/shaiya/CWorld.h"
+#include "include/shaiya/CZone.h"
+#include "include/shaiya/CMob.h"
+#include "include/shaiya/MobInfo.h"
+#include <shaiya/include/network/game/incoming/1100.h>
+#include <shaiya/include/network/game/outgoing/1100.h>
 #include <string>
+#include <cstring>
 
 using namespace shaiya;
 
 namespace packet_chat
 {
-    void handle_chat(CUser* user, const char* chat)
+    /**
+     * @brief Manejador de Chat mediante Hook de Tabla de Dispatcher (Registro EBX).
+     * Solución de precisión para Shaiya Lotus (Core EP6.4 Modificado).
+     */
+    bool handle_chat(CUser* user, shaiya::GameChatNormalIncoming* packet)
     {
-        // Verificar si el usuario es un Administrador (AuthStatus)
-        if (user->authStatus <= AuthStatus::AdminE && chat[0] == '/')
+        // 1. BLINDAJE DE MEMORIA
+        if ((uintptr_t)user < 0x100000 || (uintptr_t)packet < 0x100000)
+            return false;
+
+        // Solo procesar si el usuario está físicamente en el mapa
+        if (user->where != UserWhere::Default)
+            return false;
+
+        // 2. VALIDACIÓN DE MENSAJE (En Lotus, el mensaje está en EBX + 0x2 o similar)
+        // Nuestra estructura GameChatNormalIncoming ya mapea esto correctamente.
+        if (packet->messageLength == 0 || packet->messageLength > 128)
+            return false;
+
+        std::string input(packet->message.data());
+
+        // --- SISTEMA DE AVISOS DE RAID (!!) ---
+        if (input.starts_with("!!") && user->party)
         {
-            std::string cmd(chat);
-            if (cmd == "/reload drops")
+            // Solo el líder de la party/raid puede avisar
+            if (!CParty::IsPartyBoss(user->party, user))
+                return false;
+
+            std::string content = input.substr(2);
+            std::string announcement;
+
+            if (content == "target")
             {
-                // Ejecutar la recarga dinámica
-                DynamicDropManager::Load();
-                
-                // Enviar mensaje de confirmación al Administrador
-                // (Aquí se usaría la función de envío de paquetes de sistema del core)
-                // user->SendSystemMessage("Drops Dinámicos recargados desde SQL.");
+                // Offsets de Target estables para Lotus EP6.4
+                int32_t targetType = *(int32_t*)((char*)user + 0x332);
+                uint32_t targetId = *(uint32_t*)((char*)user + 0x336);
+
+                if (targetType == 1) // Jugador
+                {
+                    CUser* targetUser = CWorld::FindUser(targetId);
+                    if (targetUser)
+                        announcement = "[RN] >>> TARGET: " + std::string(targetUser->charName.data()) + " <<<";
+                }
+                else if (targetType == 2 && user->zone) // Monstruo
+                {
+                    CMob* targetMob = CZone::FindMob(user->zone, targetId);
+                    if (targetMob && targetMob->info)
+                        announcement = "[RN] >>> TARGET: " + std::string(targetMob->info->mobName.data()) + " <<<";
+                }
             }
+            else if (!content.empty())
+            {
+                // Mensaje libre a la raid
+                announcement = "[RN] " + content;
+            }
+
+            if (!announcement.empty())
+            {
+                GameChatUnionOutgoing outgoing{};
+                outgoing.senderId = user->id;
+                
+                size_t len = announcement.length();
+                if (len > 127) len = 127;
+
+                outgoing.messageLength = static_cast<uint8_t>(len + 1);
+                std::memcpy(outgoing.message.data(), announcement.c_str(), len);
+                outgoing.message[len] = '\0';
+
+                // Usamos el Broadcast de CParty (Opcode 0x1112)
+                CParty::Send(user->party, &outgoing, outgoing.length());
+            }
+
+            return true; // Bloquear ejecución original
         }
+
+        return false;
     }
 }
 
-// Offset para el hook de chat en ps_game EP6
-unsigned u0x47A1F5 = 0x47A1F5; // Punto de retorno (después del detour)
+// Dirección de la función original en Shaiya Lotus (Encontrada por escaneo)
+unsigned u0x47F5F2 = 0x47F5F2;
 
-void __declspec(naked) naked_0x47A1F0()
+// NAKED: Proxy de Tabla con lectura de registro EBX
+void __declspec(naked) naked_chat_proxy()
 {
     __asm
     {
-        // Original code at 0x47A1F0
-        push ebp
-        mov ebp,esp
-        and esp,-0x8
-
-        // Verificar que ecx (CUser*) no sea NULL antes de llamar a handle_chat
-        test ecx,ecx
-        je skip_handler
-
         pushad
-        // El mensaje de chat es el segundo argumento de ChatHandler(this, packet)
-        mov eax, [ebp+0xC] // Packet
-        add eax, 2         // Saltar Opcode (0x0201)
-        
-        push eax // chat message
-        push ecx // CUser* (this)
+        // En tu servidor Lotus: 
+        // EBX = Dirección del Paquete
+        // ECX = Dirección del Usuario (this)
+        push ebx
+        push ecx
         call packet_chat::handle_chat
         add esp, 8
-        
-        popad
 
-        skip_handler:
-        jmp u0x47A1F5
+        test al, al
+        jne block_original
+
+        popad
+        // Saltar al manejador de chat original de Lotus
+        jmp u0x47F5F2
+
+    block_original:
+        popad
+        // Tu servidor usa un 'ret' simple para estas funciones (sin pop 4)
+        ret
     }
 }
 
@@ -64,7 +129,9 @@ namespace hook
 {
     void packet_chat()
     {
-        // Hookeamos al puro inicio de la funcion para no romper instrucciones a la mitad
-        // util::detour((void*)0x47A1F0, naked_0x47A1F0, 5);
+        // Hook de Tabla de Dispatcher de Grupo 0x11 (Ajuste para Lotus)
+        // VA Tabla: 0x47FC80 -> Indice 1 (Chat Normal): 0x47FC84
+        unsigned* chat_ptr = (unsigned*)0x47FC84;
+        util::write_memory(chat_ptr, &naked_chat_proxy, 4);
     }
 }

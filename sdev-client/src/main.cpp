@@ -21,6 +21,8 @@ void Main()
     hook::vehicle();
     hook::weapon_step();
     hook::window();
+    hook::target();
+
 
     LoadLibraryA("raid.dll");
     LoadLibraryA("DCLotus.dll");

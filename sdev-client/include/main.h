@@ -22,6 +22,7 @@ namespace hook
     void vehicle();
     void weapon_step();
     void window();
+    void target();
 }
 
 inline int g_showCostumes = false;
