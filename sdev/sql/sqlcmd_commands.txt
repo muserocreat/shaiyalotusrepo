@@ -1,0 +1,35 @@
+-- Comando sqlcmd para conectar y configurar MobID 835
+-- Ejecutar en terminal/cmd:
+
+-- sqlcmd -S localhost -U lotus -P Lotus26 -d PS_GameDefs -i mobid_835_test.sql
+
+-- O ejecutar directamente:
+sqlcmd -S localhost -U lotus -P Lotus26 -d PS_GameDefs -Q "
+-- Limpiar configuración anterior si existe
+DELETE FROM PS_GameDefs.dbo.BossPartyRequirements WHERE MobID = 835;
+
+-- Insertar configuración para MobID 835
+INSERT INTO PS_GameDefs.dbo.BossPartyRequirements 
+(MobID, MinPartySize, RequireParty, Message) 
+VALUES 
+(835, 2, 1, 'Este boss requiere una party de 2+ miembros para recibir drops.');
+
+-- Verificar configuración
+SELECT 
+    MobID,
+    MinPartySize,
+    CASE WHEN RequireParty = 1 THEN 'SI' ELSE 'NO' END as RequiereParty,
+    Message
+FROM PS_GameDefs.dbo.BossPartyRequirements 
+WHERE MobID = 835;
+
+-- Inicializar trigger de recarga si no existe
+IF NOT EXISTS (SELECT 1 FROM PS_GameDefs.dbo.ServerControl)
+BEGIN
+    INSERT INTO PS_GameDefs.dbo.ServerControl (ReloadBossPartyRules) VALUES (0);
+END
+
+PRINT 'Configuración para MobID 835 completada.';
+PRINT 'Requiere: 2+ miembros en party';
+PRINT 'Mensaje personalizado activado';
+"

@@ -1,0 +1,38 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+
+# Build output
+*Debug/
+*Release/
+*x64/
+*packages/
+
+# Compiled objects and binaries
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# Build logs
+*.tlog
+*.lastbuildstate
+msbuild_log.txt
+
+# Server runtime logs (no deben rastrearse)
+*.log
+*.ini
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/

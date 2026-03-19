@@ -1,0 +1,27 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include "include/main.h"
+
+void Main()
+{
+    hook::window_title();
+    hook::camera_limit();
+    hook::character();
+    hook::command();
+    hook::custom_game();
+    hook::equipment();
+    hook::exp_view();
+    hook::input();
+    hook::item_icon();
+    hook::name_color();
+    hook::packet();
+    hook::patch();
+    hook::quick_slot();
+    hook::title();
+    hook::vehicle();
+    hook::weapon_step();
+    hook::window();
+
+    LoadLibraryA("raid.dll");
+    LoadLibraryA("DCLotus.dll");
+}
