@@ -51,6 +51,18 @@ El sistema evalúa el equipamiento del jugador en tiempo real para determinar el
 
 ---
 
+## 🎯 Marcado de Objetivos (Automatic Target Broadcaster)
+Sistema de coordinación táctica en tiempo real para líderes de unión en entornos PvP masivos.
+
+*   **Detección Automática**: El cliente intercepta el ID del objetivo seleccionado por el **Boss de la Unión** (Líder) en la dirección `0x44CF14`.
+*   **Aviso de Banda (Notification)**: Si el líder marca a un enemigo, el sistema envía automáticamente un mensaje de alerta a toda la unión: `>>> ATTACK: [Nombre] <<<`.
+*   **Filtros de Combate**:
+    *   **Zonas de Guerra**: Solo se activa en mapas PvP (Proelium, Cantabilian, Deep Desert, Kanos Illu, etc.).
+    *   **Anti-Spam**: Incluye un sistema de *Debounce* de 500ms para evitar saturar el chat durante el cambio rápido de objetivos.
+    *   **Validación de Alianzas**: El sistema ignora automáticamente a aliados y NPCs para centrarse solo en jugadores de la facción enemiga.
+
+---
+
 ## ⚔️ Mecánicas de Juego (Game Logic)
 
 ### Bloqueo de Jefes (Boss Party Lock)
