@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="src">
@@ -85,6 +85,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\webhook.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\DynamicNaked.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="include\shaiya\CGameData.cpp">
@@ -603,6 +606,9 @@
       <Filter>include\shaiya</Filter>
     </ClInclude>
     <ClInclude Include="include\shaiya\webhook.h">
+      <Filter>include\shaiya</Filter>
+    </ClInclude>
+    <ClInclude Include="include\shaiya\DynamicNaked.h">
       <Filter>include\shaiya</Filter>
     </ClInclude>
   </ItemGroup>

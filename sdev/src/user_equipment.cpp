@@ -11,12 +11,16 @@
 #include "include/shaiya/CUser.h"
 #include "include/shaiya/ItemInfo.h"
 #include "include/shaiya/NetworkHelper.h"
+#include "include/shaiya/DynamicNaked.h"
 using namespace shaiya;
 
 namespace user_equipment
 {
     bool enable_slot(CUser* user, CItem* item, ItemInfo* itemInfo, int itemSlot)
     {
+        // LLAMADA MODULAR AL EVENTO NAKED
+        if (!DynamicNaked::CanEquip(user, itemSlot)) return false;
+
         auto itemType = static_cast<ItemType>(itemInfo->type);
         auto realType = itemInfo->realType;
 
