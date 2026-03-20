@@ -1,7 +1,11 @@
 #include <map>
+#include <cmath>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <util/util.h>
 #include "include/main.h"
 #include "include/shaiya/CCharacter.h"
+#include "include/shaiya/CPlayerData.h"
 #include "include/shaiya/CDataFile.h"
 #include "include/shaiya/HexColor.h"
 #include "include/shaiya/ItemInfo.h"
@@ -10,175 +14,218 @@ using namespace shaiya;
 
 namespace name_color
 {
-    const std::map<uint16_t, HexColor> g_itemRangeToColor
-    {
-        { 1, HexColor::LightBlue },
-        { 2, HexColor::Blue },
-        { 3, HexColor::Green },
-        { 4, HexColor::Yellow },
-        { 5, HexColor::Orange },
-        { 6, HexColor::Red },
-        { 7, HexColor::Pink },
-        { 8, HexColor::Purple },
-        { 9, HexColor::Gray },
-        { 10, HexColor::Black },
-        { 11, HexColor::Cyan },
-        { 12, HexColor::Magenta },
-        { 13, HexColor::Brown },
-        { 14, HexColor::Lime },
-        { 15, HexColor::Olive },
-        { 16, HexColor::Maroon },
-        { 17, HexColor::Navy },
-        { 18, HexColor::Teal },
-        { 19, HexColor::Silver },
-        { 20, HexColor::Gold },
-        { 21, HexColor::Crimson },
-        { 22, HexColor::Khaki },
-        { 23, HexColor::Lavender },
-        { 24, HexColor::Peach },
-        { 25, HexColor::Coral },
-        { 26, HexColor::Salmon },
-        { 27, HexColor::Mint },
-        { 28, HexColor::Beige },
-        { 29, HexColor::Plum },
-        { 30, HexColor::Orchid },
-        { 31, HexColor::Rose },
-        { 32, HexColor::Wheat },
-        { 33, HexColor::Azure },
-        { 34, HexColor::Ivory },
-        { 35, HexColor::Snow },
-        { 36, HexColor::Honeydew },
-        { 37, HexColor::LimeGreen },
-        { 38, HexColor::LightCoral },
-        { 39, HexColor::LightPink },
-        { 40, HexColor::SeaGreen },
-        { 41, HexColor::SkyBlue },
-        { 42, HexColor::SlateGray },
-        { 43, HexColor::Turquoise },
-        { 44, HexColor::VioletRed },
-        { 45, HexColor::SpringGreen },
-        { 46, HexColor::Chartreuse },
-        { 47, HexColor::Sienna },
-        { 48, HexColor::SlateBlue },
-        { 49, HexColor::SteelBlue },
-        { 50, HexColor::Tomato },
-        { 51, HexColor::DarkRed },
-        { 52, HexColor::DarkOrange },
-        { 53, HexColor::DarkViolet },
-        { 54, HexColor::LightYellow },
-        { 55, HexColor::LightCyan },
-        { 56, HexColor::PapayaWhip },
-        { 57, HexColor::Moccasin },
-        { 58, HexColor::NavajoWhite },
-        { 59, HexColor::LemonChiffon },
-        { 60, HexColor::MistyRose }
+    // Sistema Base: Colores por Range de Casco
+    const std::map<uint16_t, HexColor> g_itemRangeToColor {
+        { 1, HexColor::LightBlue }, { 2, HexColor::Blue }, { 3, HexColor::Green },
+        { 4, HexColor::Yellow }, { 5, HexColor::Orange }, { 6, HexColor::Red },
+        { 7, HexColor::Pink }, { 8, HexColor::Purple }, { 9, HexColor::Gray },
+        { 10, HexColor::Black }
     };
 
-    HexColor get_mob_name_color(int mobLevel)
-    {
-        int gap = mobLevel - g_pPlayerData->level;
-        if (gap >= 10)
-            return HexColor::Gray;
+    // --- EFECTOS DINÁMICOS ESTILO LOTUS ---
+    
+    // Smooth Rainbow (HSL Cycle)
+    D3DCOLOR get_rainbow_color(float speed = 15.0f) {
+        float hue = fmodf(GetTickCount() / speed, 360.0f);
+        float sat = 1.0f, lit = 0.5f;
+        float c = (1.0f - fabsf(2.0f * lit - 1.0f)) * sat;
+        float x = c * (1.0f - fabsf(fmodf(hue / 60.0f, 2.0f) - 1.0f));
+        float m = lit - c / 2.0f;
+        float r = 0, g = 0, b = 0;
+        if (hue < 60) { r = c; g = x; b = 0; }
+        else if (hue < 120) { r = x; g = c; b = 0; }
+        else if (hue < 180) { r = 0; g = c; b = x; }
+        else if (hue < 240) { r = 0; g = x; b = c; }
+        else if (hue < 300) { r = x; g = 0; b = c; }
+        else { r = c; g = 0; b = x; }
+        return (0xFE000000) | (static_cast<uint8_t>((r + m) * 255.0f) << 16) | 
+                              (static_cast<uint8_t>((g + m) * 255.0f) << 8) | 
+                               static_cast<uint8_t>((b + m) * 255.0f);
+    }
 
-        switch (gap)
-        {
-        case 9: case 8:
-            return HexColor::Pink;
-        case 7: case 6:
-            return HexColor::Red;
-        case 5: case 4:
-            return HexColor::Orange;
-        case 3: case 2:
-            return HexColor::Yellow;
-        case 1: case 0: case -1:
-            return HexColor::Green;
-        case -2: case -3:
-            return HexColor::Blue;
-        case -4: case -5:
-            return HexColor::LightBlue;
-        default:
-            break;
+    // Quad Rainbow (Discrete Cycle)
+    D3DCOLOR get_quad_rainbow_color() {
+        static const D3DCOLOR colors[4] = { 
+            0xFEFF0000, // Rojo
+            0xFEFFFF00, // Amarillo
+            0xFE00FF00, // Verde
+            0xFEFFA500  // Naranja
+        };
+        return colors[(GetTickCount() / 500) % 4];
+    }
+
+    inline D3DCOLOR alpha_safe(HexColor color) {
+        return (std::to_underlying(color) & 0x00FFFFFF) | 0xFE000000;
+    }
+
+    // Lógica Unificada (Sin Spoofing Global)
+    D3DCOLOR get_custom_name_color(CCharacter* user) {
+        if (!user) return 0;
+
+        // 1. PRIORIDAD MÁXIMA: Capas con Efectos y Colores
+        auto cloakType = user->equipment.type[ItemSlot::Cloak];
+        auto cloakTypeId = user->equipment.typeId[ItemSlot::Cloak];
+        
+        // Verificación explícita: solo procesar si hay un cloak válido
+        if (cloakType && cloakType > 0 && cloakTypeId > 0) {
+            uint32_t cloakId = (cloakType * 1000) + cloakTypeId;
+            
+            // Efectos Especiales Lotus
+            if (cloakId == 24109) return get_rainbow_color(20.0f); // Staff (Slower)
+            if (cloakId == 24110) return get_quad_rainbow_color(); // GM (Quad)
+            if (cloakId == 24114) return get_rainbow_color(10.0f); // Creator (Faster)
+
+            // Colores Estáticos de Títulos
+            if (cloakId == 24106) return alpha_safe(HexColor::Turquoise);
+            if (cloakId == 24107) return alpha_safe(HexColor::DodgerBlue);
+            if (cloakId == 24108) return alpha_safe(HexColor::MediumSlateBlue);
         }
 
-        return HexColor::White;
-    }
-
-    D3DCOLOR get_helmet_name_color(CCharacter* user)
-    {
-        auto helmetType = user->equipment.type[ItemSlot::Helmet];
-        auto helmetTypeId = user->equipment.typeId[ItemSlot::Helmet];
-
-        auto itemInfo = CDataFile::GetItemInfo(helmetType, helmetTypeId);
-        if (!itemInfo)
-            return 0;
-
-        if (!itemInfo->range)
-            return 0;
-
-        for (const auto& [range, color] : g_itemRangeToColor)
-        {
-            if (range == itemInfo->range)
-                return std::to_underlying(color);
+        // 2. FALLBACK: Cascos (Por valor de 'range')
+        auto hType = user->equipment.type[ItemSlot::Helmet];
+        auto hTypeId = user->equipment.typeId[ItemSlot::Helmet];
+        
+        // Verificación explícita: solo procesar si hay un casco válido
+        if (hType && hType > 0 && hTypeId > 0) {
+            auto itemInfo = CDataFile::GetItemInfo(hType, hTypeId);
+            if (itemInfo && itemInfo->range && itemInfo->range > 0) {
+                auto itRange = g_itemRangeToColor.find(itemInfo->range);
+                if (itRange != g_itemRangeToColor.end()) return alpha_safe(itRange->second);
+            }
         }
 
-        return 0;
+        return 0; // Color nativo del juego (blanco característico)
     }
 }
 
-void __declspec(naked) naked_0x4E50D0()
+namespace name_color 
 {
-    __asm
-    {
-        push ebx
-        push edi
-        push esi
+    // RETORNOS
+    unsigned u4537DB = 0x4537DB; 
+    unsigned u453819 = 0x453819; 
+    unsigned u45385B = 0x45385B; 
+    unsigned u453889 = 0x453889; 
+    unsigned u4538A6 = 0x4538A6; 
+    unsigned u4538CD = 0x4538CD; 
 
-        movzx eax,word ptr[esp+0x10]
-        push eax
-        call name_color::get_mob_name_color
-        add esp,0x4
+    // Funciones hook individuales con sintaxis correcta
+    void __declspec(naked) naked_4537D5() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_4537D5
+            mov dword ptr [esp+8], eax
+            popad
+            sub eax, 0x4 // Instrucción reemplazada
+            jmp u4537DB
+        original_4537D5:
+            popad
+            or ebp, -0x1 // Instrucción reemplazada
+            sub eax, 0x4 // Instrucción reemplazada
+            jmp u4537DB
+        }
+    }
 
-        pop esi
-        pop edi
-        pop ebx
+    void __declspec(naked) naked_453814() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_453814
+            mov dword ptr [esp+8], eax
+            popad
+            jmp u453819
+        original_453814:
+            popad
+            mov ebp, 0xFF0000FF
+            jmp u453819
+        }
+    }
 
-        retn 0x4
+    void __declspec(naked) naked_453856() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_453856
+            mov dword ptr [esp+8], eax
+            popad
+            jmp u45385B
+        original_453856:
+            popad
+            mov ebp, 0xFF00FF00
+            jmp u45385B
+        }
+    }
+
+    void __declspec(naked) naked_453884() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_453884
+            mov dword ptr [esp+8], eax
+            popad
+            jmp u453889
+        original_453884:
+            popad
+            mov ebp, 0xFFFF0000
+            jmp u453889
+        }
+    }
+
+    void __declspec(naked) naked_4538A1() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_4538A1
+            mov dword ptr [esp+8], eax
+            popad
+            jmp u4538A6
+        original_4538A1:
+            popad
+            mov ebp, 0xFFFF0000
+            jmp u4538A6
+        }
+    }
+
+    void __declspec(naked) naked_4538C8() {
+        __asm {
+            pushad
+            push esi
+            call name_color::get_custom_name_color
+            add esp, 4
+            test eax, eax
+            jz original_4538C8
+            mov dword ptr [esp+8], eax
+            popad
+            jmp u4538CD
+        original_4538C8:
+            popad
+            mov ebp, 0xFFFF0000
+            jmp u4538CD
+        }
     }
 }
 
-unsigned u0x453821 = 0x453821;
-void __declspec(naked) naked_0x45381B()
-{
-    __asm
-    {
-        push ebx
-        push edi
-        push esi
-
-        push esi // user
-        call name_color::get_helmet_name_color
-        add esp,0x4
-        test eax,eax
-
-        pop esi
-        pop edi
-        pop ebx
-
-        je original
-
-        mov ebp,eax
-
-        original:
-        cmp dword ptr ds:[0x22AA7F8],ebx
-        jmp u0x453821
-    }
+void hook::name_color() {
+    using namespace name_color;
+    util::detour((void*)0x4537D5, naked_4537D5, 6); 
+    util::detour((void*)0x453814, naked_453814, 5);
+    util::detour((void*)0x453856, naked_453856, 5);
+    util::detour((void*)0x453884, naked_453884, 5);
+    util::detour((void*)0x4538A1, naked_4538A1, 5);
+    util::detour((void*)0x4538C8, naked_4538C8, 5);
 }
-
-void hook::name_color()
-{
-    // mobs
-    util::detour((void*)0x4E50D0, naked_0x4E50D0, 5);
-    // users
-    util::detour((void*)0x45381B, naked_0x45381B, 6);
-}
-

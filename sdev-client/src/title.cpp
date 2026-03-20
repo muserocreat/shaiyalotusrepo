@@ -90,6 +90,10 @@ namespace title
         if (it == items.end())
             return;
 
+        // FILTRO ESPECIAL: Si es uno de los 6 IDs para color de nombre, no dibujamos texto
+        if (itemId >= 24106 && itemId <= 24114)
+            return;
+
         auto& text = std::get<0>(it->second);
         auto color = std::to_underlying(std::get<1>(it->second));
 
