@@ -1,8 +1,8 @@
 # Shaiya Lotus PS Source
 
-Core es un proyecto de código abierto diseñado para proporcionar una base universal para servidores privados de Shaiya. Este repositorio contiene el código utilizado por el servidor (PSGame), login (PSLogin), agente de base de datos (PSDBAgent) y el cliente (Game.exe).
+**Shaiya Lotus PS Source** es un proyecto de código abierto diseñado para proporcionar una base universal para servidores privados de Shaiya. Este repositorio contiene el código utilizado por el servidor (PSGame), login (PSLogin), agente de base de datos (PSDBAgent) y el cliente (Game.exe).
 
-Esta versión personalizada del proyecto Core ha sido optimizada para ofrecer **Estabilidad Industrial** y nuevas funcionalidades avanzadas, corrigiendo errores heredados de versiones anteriores (como el crash de creación de personajes en Lotus).
+Esta versión personalizada de **Shaiya Lotus PS Source** ha sido optimizada para ofrecer **Estabilidad Industrial** y nuevas funcionalidades avanzadas, corrigiendo errores heredados de versiones anteriores (como el crash de creación de personajes en Lotus).
 
 ---
 
@@ -78,6 +78,8 @@ Fomenta la cooperación de banda impidiendo que jugadores individuales o grupos 
 ---
 
 ### 🏛️ Créditos
+- **[DEV]Masi0**: Desarrollador Server Side 
+- **[DEV]Tonchi**: Desarrollador Web - Sistemas Automatizacion
 - **Lotus Customizations**: Desarrollado para garantizar un entorno estable y dinámico en servidores de producción de alta carga.
 
 ---
