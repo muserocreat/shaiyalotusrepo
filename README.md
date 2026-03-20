@@ -29,6 +29,14 @@ Sistema de actualización de saldo (AP) en tiempo real para los jugadores.
 *   **Cola de Recarga**: Escanea la tabla `PointReloadQueue` cada 3 segundos.
 *   **Refresco Invisible**: Envía paquetes de sincronización al **DBAgent** para actualizar el saldo del usuario mientras este sigue jugando, ideal para integraciones con paneles web de donaciones.
 
+### 4. Evento Desnudo (Dynamic Naked)
+Sistema modular de restricción de equipamiento diseñado para eventos competitivos de pura habilidad.
+*   **Zona Restringida (Mapa 60)**: El sistema detecta automáticamente la ubicación del jugador para aplicar las reglas del evento.
+*   **Bloqueo de Equipamiento**: Mientras el jugador esté en la zona, el servidor deniega cualquier intento de equipar ítems en slots de Armadura, Joyería, Capas o Mascotas.
+*   **Excepciones Estratégicas**: Se permite el equipamiento y cambio de **Armas** y **Escudos** para no interrumpir el flujo del combate.
+*   **Notificaciones de Sistema**: Al intentar equipar un objeto prohibido, el jugador recibe instantáneamente el mensaje de sistema **2025**, proporcionando feedback inmediato sobre la restricción.
+*   **Modularidad**: Implementado como una capa independiente que no afecta el rendimiento global del servidor fuera de las zonas designadas.
+
 ---
 
 ## 🎭 Identidad Visual: Cloak Name Colors
