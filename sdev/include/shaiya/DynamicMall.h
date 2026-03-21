@@ -22,12 +22,6 @@ namespace shaiya {
         static void Load();
         static void CheckReloadTrigger();
         
-        // Verifica si un producto tiene datos dinámicos cargados (Opcional para Debug)
-        static bool HasDynamicProduct(const std::string& productCode);
-
-        // Retorna la lista de Códigos modificados para el log
-        static const std::vector<std::string>& GetModifiedProductList();
-
         // Escribe en el doc MallChanged.ini
         static void Log(const std::string& message);
         

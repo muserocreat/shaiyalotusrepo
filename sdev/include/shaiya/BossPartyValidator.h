@@ -19,10 +19,8 @@ namespace shaiya {
 
     class BossPartyValidator {
     public:
-        // Inicialización y carga desde BD
-        static void Init();
+        // Carga desde BD
         static void Load();
-        static void Reload();
         static void CheckReloadTrigger();
 
         // Validación principal (capa intermedia)
@@ -32,14 +30,9 @@ namespace shaiya {
         static bool IsBossRequiringParty(uint32_t mobId);
         static bool HasValidParty(CUser* user, uint8_t minSize);
         
-        // Configuración
-        static void SetRule(uint32_t mobId, const BossPartyRule& rule);
-        static void RemoveRule(uint32_t mobId);
-        
-        // Estadísticas y logging
+        // Logging
         static void LogBlockedDrop(uint32_t mobId, CUser* killer);
         static void Log(const std::string& message);
-        static void LogChange(uint32_t mobId, uint16_t grade, uint32_t rawRate, const std::string& action);
 
     private:
         static std::shared_mutex m_mutex;

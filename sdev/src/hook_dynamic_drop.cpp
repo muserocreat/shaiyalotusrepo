@@ -1,10 +1,4 @@
 #include <util/util.h>
-#include <iostream>
-#include <fstream>
-#include <chrono>
-#include <ctime>
-#include <iomanip>
-#include <cstdio>
 #include "include/main.h"
 #include "include/shaiya/CMob.h"
 #include "include/shaiya/CWorld.h"
@@ -18,25 +12,6 @@ using namespace shaiya;
 namespace dynamic_drop_hook
 {
     extern "C" uint32_t __cdecl OnMobHealthWrite(CMob* mob, uint32_t newHealth);
-}
-
-static std::string GetHookLogPath()
-{
-    HMODULE hMod = NULL;
-    GetModuleHandleExA(
-        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        reinterpret_cast<LPCSTR>(&GetHookLogPath),
-        &hMod);
-
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(hMod, buffer, MAX_PATH);
-    std::string modpath = buffer;
-    std::string modFolder = modpath.substr(0, modpath.find_last_of("\\/"));
-
-    std::string dataFolder = modFolder + "\\Data";
-    CreateDirectoryA(dataFolder.c_str(), NULL);
-
-    return dataFolder + "\\HookDynamicDrop.log";
 }
 
 // Hook: write de HP del mob (CheatEngine)
@@ -61,54 +36,8 @@ void __declspec(naked) naked_0x004A1A62_MobHealthWrite()
     }
 }
 
-static std::string GetHookLogPathFallback()
-{
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    std::string exepath = buffer;
-    std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-    return exeFolder + "\\HookDynamicDrop.log";
-}
-
-static void LogHookToFile(const std::string& message)
-{
-    std::string path = GetHookLogPath();
-    FILE* file = nullptr;
-    auto write = [&](const std::string& p) -> bool {
-        FILE* f = nullptr;
-        if (fopen_s(&f, p.c_str(), "a") != 0 || f == nullptr)
-            return false;
-
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-        char buf[100];
-        std::tm tm_buf;
-        localtime_s(&tm_buf, &now_time);
-        std::strftime(buf, sizeof(buf), "[%Y-%m-%d %H:%M:%S]", &tm_buf);
-        fprintf(f, "%s %s\n", buf, message.c_str());
-        fclose(f);
-        return true;
-    };
-
-    if (write(path))
-        return;
-
-    write(GetHookLogPathFallback());
-}
-
 namespace dynamic_drop_hook
 {
-    static volatile long g_nakedHitCount = 0;
-
-    extern "C" void __cdecl OnNakedHookHit()
-    {
-        // Loguear solo las primeras veces para evitar spam
-        long n = InterlockedIncrement(&g_nakedHitCount);
-        if (n <= 20) {
-            LogHookToFile("[HOOK HIT] naked_0x48D2E1_Safe ejecutado. count=" + std::to_string(n));
-        }
-    }
-
     extern "C" uint32_t __cdecl OnMobHealthWrite(CMob* mob, uint32_t newHealth)
     {
         if (!mob)
@@ -155,14 +84,6 @@ namespace dynamic_drop_hook
 
         uint32_t realMobId = static_cast<uint32_t>(info->mobId);
         
-        // Validación BossParty
-        CUser* killer = nullptr; // TODO: Obtener killer si es posible
-        if (!BossPartyValidator::ValidateDrop(realMobId, killer)) {
-            *outGrade = 0;
-            *outRate = 0;
-            return;
-        }
-        
         // Dynamic Drop lookup
         if (!DynamicDropManager::GetDrop(realMobId, static_cast<uint8_t>(itemOrder), *outGrade, *outRate))
         {
@@ -181,11 +102,6 @@ void __declspec(naked) naked_0x48D2E1_Safe()
 {
     __asm
     {
-        // Confirmación de ejecución del hook (log a archivo)
-        pushad
-        call dynamic_drop_hook::OnNakedHookHit
-        popad
-
         // Protegemos ECX si el servidor lo necesitara
         push ecx
         
@@ -221,8 +137,6 @@ void __declspec(naked) naked_0x48D2E1_Safe()
 
 void hook::dynamic_drop()
 {
-    BossPartyValidator::Init();
-    
     // CMob::GenerateLoot - Desviamos exactamente al momento de pescar y evaluar Drop
     // EP6 Offset: 0x48D2E1 - Incluye validación BossParty integrada
     util::detour((void*)0x48D2E1, naked_0x48D2E1_Safe, 6);
@@ -230,5 +144,5 @@ void hook::dynamic_drop()
     // Hook alternativo: bloquear daño escribiendo HP (party validation)
     util::detour((void*)0x004A1A62, naked_0x004A1A62_MobHealthWrite, 6);
     
-    LogHookToFile("[HOOK INIT] dynamic_drop + BossPartyValidator inicializados");
+    BossPartyValidator::Log("[HOOK INIT] dynamic_drop inicializado");
 }

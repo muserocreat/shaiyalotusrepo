@@ -1,10 +1,7 @@
-#include <algorithm>
-#include <iostream>
-#include <fstream>
+#include <unordered_set>
 #include <chrono>
 #include <ctime>
 #include <string>
-#include <iomanip>
 #include <windows.h> // Para GetModuleFileNameA
 #include <sql.h>
 #include <sqlext.h>
@@ -37,11 +34,14 @@ namespace shaiya {
 
     // Helper: Registra errores graves si la consola no esta visible (Servicios)
     void LogErrorToFile(const std::string& errMessage) {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        std::string exepath = buffer;
-        std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-        std::string errPath = exeFolder + "\\DynamicDrop_Error.log";
+        static std::string errPath;
+        if (errPath.empty()) {
+            char buffer[MAX_PATH];
+            GetModuleFileNameA(NULL, buffer, MAX_PATH);
+            std::string exepath = buffer;
+            std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
+            errPath = exeFolder + "\\DynamicDrop_Error.log";
+        }
 
         FILE* file;
         if (fopen_s(&file, errPath.c_str(), "a") == 0 && file != nullptr) {
@@ -94,7 +94,7 @@ namespace shaiya {
         static bool g_hasInitialLoad = false;
 
         if (!g_hasInitialLoad) {
-            std::cout << "[Dynamic Drop] Iniciando conexion nativa (lotus) desde el hilo padre..." << std::endl;
+            Log("Iniciando conexion nativa (lotus) desde el hilo padre...");
             Load();
             g_hasInitialLoad = true;
             next_check = std::chrono::system_clock::now() + 10000ms;
@@ -138,15 +138,17 @@ namespace shaiya {
 
     // Helper: Resuelve la ruta dinámica y auto-crea la carpeta Data si el servicio la requiere
     std::string GetLogFilePath() {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        std::string exepath = buffer;
-        std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-        
-        std::string dataFolder = exeFolder + "\\Data";
-        CreateDirectoryA(dataFolder.c_str(), NULL);
-        
-        return dataFolder + "\\DropChanged.ini";
+        static std::string cachedPath;
+        if (cachedPath.empty()) {
+            char buffer[MAX_PATH];
+            GetModuleFileNameA(NULL, buffer, MAX_PATH);
+            std::string exepath = buffer;
+            std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
+            std::string dataFolder = exeFolder + "\\Data";
+            CreateDirectoryA(dataFolder.c_str(), NULL);
+            cachedPath = dataFolder + "\\DropChanged.ini";
+        }
+        return cachedPath;
     }
 
     void DynamicDropManager::Load() {
@@ -164,7 +166,7 @@ namespace shaiya {
         
         // --- 1. SHADOW BUFFERING (Variables Temporales Seguras) ---
         std::unordered_map<uint32_t, std::array<DynamicDropEntry, 10>> tempDrops;
-        std::vector<uint32_t> tempModifiedMobs;
+        std::unordered_set<uint32_t> tempModifiedSet;
 
         const char* query = "SELECT MobID, ItemOrder, Grade, DropRate FROM PS_GameDefs.dbo.MobItems WHERE ItemOrder < 10";
         
@@ -189,10 +191,7 @@ namespace shaiya {
 
             if (itemOrder >= 0 && itemOrder < 10) {
                 tempDrops[mobId][itemOrder] = { (uint16_t)grade, (uint32_t)rate };
-                
-                if (std::find(tempModifiedMobs.begin(), tempModifiedMobs.end(), (uint32_t)mobId) == tempModifiedMobs.end()) {
-                    tempModifiedMobs.push_back(mobId);
-                }
+                tempModifiedSet.insert((uint32_t)mobId);
             }
         }
         SQLCloseCursor(hStmt);
@@ -302,16 +301,11 @@ namespace shaiya {
         {
             std::unique_lock<std::shared_mutex> lock(m_mutex);
             m_drops = std::move(tempDrops);
-            m_modifiedMobs = std::move(tempModifiedMobs);
+            m_modifiedMobs.assign(tempModifiedSet.begin(), tempModifiedSet.end());
         }
 
         isFirstLoad = false;
         Log("Carga SQL exitosa. " + std::to_string(m_modifiedMobs.size()) + " Mobs inyectados en GameData. Diferencias reportadas: " + std::to_string(changedCount));
-    }
-
-    bool DynamicDropManager::HasDynamicDrop(uint32_t mobId) {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        return m_drops.find(mobId) != m_drops.end();
     }
 
     bool DynamicDropManager::GetDrop(uint32_t mobId, uint8_t itemOrder, uint16_t& outGrade, uint32_t& outRate) {
@@ -325,15 +319,7 @@ namespace shaiya {
         return false;
     }
 
-    const std::vector<uint32_t>& DynamicDropManager::GetModifiedMobList() {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        return m_modifiedMobs;
-    }
-
     void DynamicDropManager::Log(const std::string& message) {
-        // Output to console 
-        std::cout << "[Dynamic Drop] " << message << std::endl;
-
         std::string logPath = GetLogFilePath();
         FILE* file;
         errno_t err = fopen_s(&file, logPath.c_str(), "a");

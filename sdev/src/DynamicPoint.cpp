@@ -102,7 +102,7 @@ namespace shaiya
 
         std::vector<int> userUIDs;
 
-        const char* query = "SELECT UserUID FROM PS_GameDefs.dbo.PointReloadQueue";
+        const char* query = "DELETE FROM PS_GameDefs.dbo.PointReloadQueue OUTPUT DELETED.UserUID";
         if (SQL_SUCCEEDED(SQLExecDirectA(hStmt, (SQLCHAR*)query, SQL_NTS))) {
             int userUID = 0;
             SQLLEN len;
@@ -115,13 +115,6 @@ namespace shaiya
             SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
             DisconnectDBPoint();
             return;
-        }
-
-        SQLCloseCursor(hStmt);
-
-        if (!userUIDs.empty()) {
-            const char* delQuery = "DELETE FROM PS_GameDefs.dbo.PointReloadQueue";
-            SQLExecDirectA(hStmt, (SQLCHAR*)delQuery, SQL_NTS);
         }
 
         SQLFreeHandle(SQL_HANDLE_STMT, hStmt);

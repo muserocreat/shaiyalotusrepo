@@ -1,10 +1,7 @@
-#include <algorithm>
-#include <iostream>
-#include <fstream>
+#include <unordered_set>
 #include <chrono>
 #include <ctime>
 #include <string>
-#include <iomanip>
 #include <windows.h>
 #include <sql.h>
 #include <sqlext.h>
@@ -37,11 +34,14 @@ namespace shaiya {
 
     // Helper: Registra errores graves
     void LogMallErrorToFile(const std::string& errMessage) {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        std::string exepath = buffer;
-        std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-        std::string errPath = exeFolder + "\\DynamicMall_Error.log";
+        static std::string errPath;
+        if (errPath.empty()) {
+            char buffer[MAX_PATH];
+            GetModuleFileNameA(NULL, buffer, MAX_PATH);
+            std::string exepath = buffer;
+            std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
+            errPath = exeFolder + "\\DynamicMall_Error.log";
+        }
 
         FILE* file;
         if (fopen_s(&file, errPath.c_str(), "a") == 0 && file != nullptr) {
@@ -95,7 +95,7 @@ namespace shaiya {
         static bool g_hasInitialLoad = false;
 
         if (!g_hasInitialLoad) {
-            std::cout << "[Dynamic Mall] Iniciando modulo de Tienda en Vivo..." << std::endl;
+            Log("Iniciando modulo de Tienda en Vivo...");
             Load();
             g_hasInitialLoad = true;
             next_check = std::chrono::system_clock::now() + 10000ms;
@@ -138,15 +138,17 @@ namespace shaiya {
     }
 
     std::string GetMallLogFilePath() {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        std::string exepath = buffer;
-        std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-        
-        std::string dataFolder = exeFolder + "\\Data";
-        CreateDirectoryA(dataFolder.c_str(), NULL);
-        
-        return dataFolder + "\\MallChanged.ini";
+        static std::string cachedPath;
+        if (cachedPath.empty()) {
+            char buffer[MAX_PATH];
+            GetModuleFileNameA(NULL, buffer, MAX_PATH);
+            std::string exepath = buffer;
+            std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
+            std::string dataFolder = exeFolder + "\\Data";
+            CreateDirectoryA(dataFolder.c_str(), NULL);
+            cachedPath = dataFolder + "\\MallChanged.ini";
+        }
+        return cachedPath;
     }
 
     // Funcion auxiliar para limpiar espacios muertos del ProductCode que extrae el ODBC
@@ -171,7 +173,7 @@ namespace shaiya {
         
         // Shadow Buffer
         std::unordered_map<std::string, DynamicMallEntry> tempProducts;
-        std::vector<std::string> tempModifiedProducts;
+        std::unordered_set<std::string> tempModifiedSet;
 
         // Armamos el super Query
         // Solicitamos el Codigo, Precio, y los 24 Slots de Item y Cantidad
@@ -223,9 +225,7 @@ namespace shaiya {
             }
 
             tempProducts[codeStr] = entry;
-            if (std::find(tempModifiedProducts.begin(), tempModifiedProducts.end(), codeStr) == tempModifiedProducts.end()) {
-                tempModifiedProducts.push_back(codeStr);
-            }
+            tempModifiedSet.insert(codeStr);
         }
         SQLCloseCursor(hStmt);
         SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
@@ -319,25 +319,14 @@ namespace shaiya {
         {
             std::unique_lock<std::shared_mutex> writeLock(m_mutex);
             m_products = std::move(tempProducts);
-            m_modifiedProducts = std::move(tempModifiedProducts);
+            m_modifiedProducts.assign(tempModifiedSet.begin(), tempModifiedSet.end());
         }
 
         isFirstLoad = false;
-        if(changedCount > 0) Log("Mall Sync listo. " + std::to_string(tempModifiedProducts.size()) + " Paquetes mapeados. Novedades inyectadas: " + std::to_string(changedCount));
-    }
-
-    bool DynamicMallManager::HasDynamicProduct(const std::string& productCode) {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        return m_products.find(productCode) != m_products.end();
-    }
-
-    const std::vector<std::string>& DynamicMallManager::GetModifiedProductList() {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        return m_modifiedProducts;
+        if(changedCount > 0) Log("Mall Sync listo. " + std::to_string(m_modifiedProducts.size()) + " Paquetes mapeados. Novedades inyectadas: " + std::to_string(changedCount));
     }
 
     void DynamicMallManager::Log(const std::string& message) {
-        std::cout << "[Dynamic Mall] " << message << std::endl;
         std::string logPath = GetMallLogFilePath();
         FILE* file;
         errno_t err = fopen_s(&file, logPath.c_str(), "a");

@@ -1,6 +1,3 @@
-#include <algorithm>
-#include <iostream>
-#include <fstream>
 #include <chrono>
 #include <ctime>
 #include <string>
@@ -20,30 +17,37 @@ using namespace shaiya;
 
 static std::string GetBossPartyLogPath()
 {
-    HMODULE hMod = NULL;
-    GetModuleHandleExA(
-        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        reinterpret_cast<LPCSTR>(&GetBossPartyLogPath),
-        &hMod);
+    static std::string cachedPath;
+    if (cachedPath.empty()) {
+        HMODULE hMod = NULL;
+        GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCSTR>(&GetBossPartyLogPath),
+            &hMod);
 
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(hMod, buffer, MAX_PATH);
-    std::string modpath = buffer;
-    std::string modFolder = modpath.substr(0, modpath.find_last_of("\\/"));
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(hMod, buffer, MAX_PATH);
+        std::string modpath = buffer;
+        std::string modFolder = modpath.substr(0, modpath.find_last_of("\\/"));
 
-    std::string dataFolder = modFolder + "\\Data";
-    CreateDirectoryA(dataFolder.c_str(), NULL);
-
-    return dataFolder + "\\BossPartyValidator.log";
+        std::string dataFolder = modFolder + "\\Data";
+        CreateDirectoryA(dataFolder.c_str(), NULL);
+        cachedPath = dataFolder + "\\BossPartyValidator.log";
+    }
+    return cachedPath;
 }
 
 static std::string GetBossPartyLogPathFallback()
 {
-    char buffer[MAX_PATH];
-    GetModuleFileNameA(NULL, buffer, MAX_PATH);
-    std::string exepath = buffer;
-    std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
-    return exeFolder + "\\BossPartyValidator.log";
+    static std::string cachedPath;
+    if (cachedPath.empty()) {
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string exepath = buffer;
+        std::string exeFolder = exepath.substr(0, exepath.find_last_of("\\/"));
+        cachedPath = exeFolder + "\\BossPartyValidator.log";
+    }
+    return cachedPath;
 }
 
 static void LogToFile(const std::string& message)
@@ -81,11 +85,6 @@ std::recursive_mutex BossPartyValidator::m_dbMutex;
 // Variables para cooldown de mensajes
 std::unordered_map<uint32_t, std::chrono::steady_clock::time_point> BossPartyValidator::m_messageCooldowns;
 std::shared_mutex BossPartyValidator::m_cooldownMutex;
-
-void BossPartyValidator::Init()
-{
-    Load();
-}
 
 void BossPartyValidator::CheckReloadTrigger() {
     using namespace std::chrono_literals;
@@ -310,20 +309,18 @@ bool BossPartyValidator::ConnectDB()
         return false;
     }
     SQLSetEnvAttr(hEnv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0);
-
+    
     if (SQLAllocHandle(SQL_HANDLE_DBC, hEnv, &hDbc) != SQL_SUCCESS) {
         LogError("Failed to allocate connection handle");
         SQLFreeHandle(SQL_HANDLE_ENV, hEnv);
         return false;
     }
-
-    std::string connStr = "DRIVER={SQL Server};SERVER=158.69.213.250;DATABASE=PS_GameDefs;UID=lotus;PWD=$2a$13$wr34crwF1vcXtwE8wDrwtunwg9cKVlZN6lJwOHwhByN.pMMNIljIK;";
     
+    std::string connStr = "DRIVER={SQL Server};SERVER=158.69.213.250;DATABASE=PS_GameDefs;UID=lotus;PWD=$2a$13$wr34crwF1vcXtwE8wDrwtunwg9cKVlZN6lJwOHwhByN.pMMNIljIK;";
     SQLCHAR szConnStrOut[1024];
     SQLSMALLINT cbConnStrOut;
     
     SQLRETURN ret = SQLDriverConnectA(hDbc, NULL, (SQLCHAR*)connStr.c_str(), SQL_NTS, szConnStrOut, sizeof(szConnStrOut), &cbConnStrOut, SQL_DRIVER_NOPROMPT);
-    
     if (!SQL_SUCCEEDED(ret)) {
         SQLCHAR sqlState[6];
         SQLINTEGER nativeError;
@@ -361,38 +358,13 @@ void BossPartyValidator::DisconnectDB()
     }
 }
 
-void BossPartyValidator::Reload()
-{
-    Load();
-}
-
-void BossPartyValidator::SetRule(uint32_t mobId, const BossPartyRule& rule)
-{
-    std::unique_lock<std::shared_mutex> lock(m_mutex);
-    m_rules[mobId] = rule;
-}
-
-void BossPartyValidator::RemoveRule(uint32_t mobId)
-{
-    std::unique_lock<std::shared_mutex> lock(m_mutex);
-    m_rules.erase(mobId);
-}
-
 void BossPartyValidator::Log(const std::string& message)
 {
     LogToFile("[BossPartyValidator] " + message);
 }
 
-void BossPartyValidator::LogChange(uint32_t mobId, uint16_t grade, uint32_t rawRate, const std::string& action)
-{
-    std::string msg = action + " - MobID: " + std::to_string(mobId) + " Grade: " + std::to_string(grade) + " Rate: " + std::to_string(rawRate);
-    LogToFile("[BossPartyValidator] " + msg);
-}
-
 void BossPartyValidator::LogError(const std::string& message)
 {
-    std::string msg = "ERROR: " + message;
-    std::cout << "[BossPartyValidator ERROR] " << message << std::endl;
     LogToFile("[BossPartyValidator ERROR] " + message);
 }
 

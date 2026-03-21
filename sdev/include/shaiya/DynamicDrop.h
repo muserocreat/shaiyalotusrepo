@@ -20,14 +20,8 @@ namespace shaiya {
         static void Load();
         static void CheckReloadTrigger();
         
-        // Verifica si un mob tiene drop dinámico configurado
-        static bool HasDynamicDrop(uint32_t mobId);
-        
         // Obtiene el drop dinámico para un mob y orden específico de forma Thread-Safe
         static bool GetDrop(uint32_t mobId, uint8_t itemOrder, uint16_t& outGrade, uint32_t& outRate);
-
-        // Retorna la lista de Mobs modificados para el log
-        static const std::vector<uint32_t>& GetModifiedMobList();
 
         // Escribe en el doc DropChanged.ini
         static void Log(const std::string& message);
