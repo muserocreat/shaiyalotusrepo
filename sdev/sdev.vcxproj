@@ -115,6 +115,7 @@
     <ClInclude Include="include\shaiya\Configuration.h" />
     <ClInclude Include="include\shaiya\DynamicDrop.h" />
     <ClInclude Include="include\shaiya\BossPartyValidator.h" />
+    <ClInclude Include="include\shaiya\DynamicNaked.h" />
     <ClInclude Include="include\shaiya\CParty.h" />
     <ClInclude Include="include\shaiya\CQuest.h" />
     <ClInclude Include="include\shaiya\CServer.h" />
@@ -216,7 +217,6 @@
     <ClInclude Include="include\shaiya\DynamicMall.h" />
     <ClInclude Include="include\shaiya\DynamicPoint.h" />
     <ClInclude Include="include\shaiya\webhook.h" />
-    <ClInclude Include="include\shaiya\DynamicNaked.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resources\sdev.rc" />

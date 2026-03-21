@@ -18,8 +18,17 @@ namespace user_equipment
 {
     bool enable_slot(CUser* user, CItem* item, ItemInfo* itemInfo, int itemSlot)
     {
-        // LLAMADA MODULAR AL EVENTO NAKED
-        if (!DynamicNaked::CanEquip(user, itemSlot)) return false;
+        // Capa 1: Validación centralizada de punteros
+        if (!user || !item || !itemInfo)
+            return false;
+        if ((uintptr_t)user < 0x100000)
+            return false;
+        if (itemSlot < 0 || itemSlot > ItemSlot::Wings)
+            return false;
+
+        // Capa 2: Sistema DynamicNaked - Restricción por mapa
+        if (!DynamicNaked::CanEquip(user, itemSlot))
+            return false;
 
         auto itemType = static_cast<ItemType>(itemInfo->type);
         auto realType = itemInfo->realType;

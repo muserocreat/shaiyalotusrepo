@@ -131,7 +131,7 @@ namespace hook
     {
         // Hook de Tabla de Dispatcher de Grupo 0x11 (Ajuste para Lotus)
         // VA Tabla: 0x47FC80 -> Indice 1 (Chat Normal): 0x47FC84
-        unsigned* chat_ptr = (unsigned*)0x47FC84;
-        util::write_memory(chat_ptr, &naked_chat_proxy, 4);
+        unsigned hookAddr = (unsigned)naked_chat_proxy;
+        util::write_memory((void*)0x47FC84, &hookAddr, 4);
     }
 }
