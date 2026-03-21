@@ -93,7 +93,7 @@ void BossPartyValidator::CheckReloadTrigger() {
     static bool g_hasInitialLoad = false;
 
     if (!g_hasInitialLoad) {
-        std::cout << "[BossPartyValidator] Iniciando conexion nativa (lotus) desde el hilo padre..." << std::endl;
+        Log("Iniciando conexion nativa desde el hilo padre...");
         Load();
         g_hasInitialLoad = true;
         next_check = std::chrono::system_clock::now() + 10000ms;
@@ -191,11 +191,9 @@ void BossPartyValidator::Load()
         m_rules = std::move(tempRules);
         
         if (isFirstLoad) {
-            std::cout << "[BossPartyValidator] Carga inicial completada - " << m_rules.size() << " reglas cargadas" << std::endl;
             Log("Carga inicial completada - " + std::to_string(m_rules.size()) + " reglas cargadas");
             isFirstLoad = false;
         } else {
-            std::cout << "[BossPartyValidator] Recarga completada - " << m_rules.size() << " reglas (antes: " << oldSize << ")" << std::endl;
             Log("Recarga completada - " + std::to_string(m_rules.size()) + " reglas (antes: " + std::to_string(oldSize) + ")");
         }
     }
@@ -203,68 +201,22 @@ void BossPartyValidator::Load()
 
 bool BossPartyValidator::ValidateDrop(uint32_t mobId, CUser* killer)
 {
-    std::string logMsg = "ValidateDrop llamado - MobID: " + std::to_string(mobId) + 
-                        " Killer: " + std::string(killer ? killer->charName.data() : "NULL");
-    std::cout << "[BOSS DEBUG] " << logMsg << std::endl;
-    LogToFile("[BOSS DEBUG] " + logMsg);
-
-    // Logging especial para MobID 835 durante pruebas
-    if (mobId == 835) {
-        std::string testMsg = "Iniciando validación - Killer: " + std::string(killer ? killer->charName.data() : "NULL");
-        std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-        LogToFile("[BOSS 835 TEST] " + testMsg);
-    }
-
     // Si no hay regla para este mob, permitir drop
-    if (!IsBossRequiringParty(mobId)) {
-        if (mobId == 835) {
-            std::string testMsg = "Sin regla configurada - Permitiendo drop";
-            std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-            LogToFile("[BOSS 835 TEST] " + testMsg);
-        }
-        std::string debugMsg = "No hay regla para MobID " + std::to_string(mobId) + " - Permitiendo drop";
-        std::cout << "[BOSS DEBUG] " << debugMsg << std::endl;
-        LogToFile("[BOSS DEBUG] " + debugMsg);
+    if (!IsBossRequiringParty(mobId))
         return true;
-    }
 
     // Obtener regla específica
     BossPartyRule rule;
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
         auto it = m_rules.find(mobId);
-        if (it == m_rules.end()) {
-            if (mobId == 835) {
-                std::string testMsg = "Regla no encontrada - Permitiendo drop";
-                std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-                LogToFile("[BOSS 835 TEST] " + testMsg);
-            }
-            std::string debugMsg = "Regla no encontrada para MobID " + std::to_string(mobId) + " - Permitiendo drop";
-            std::cout << "[BOSS DEBUG] " << debugMsg << std::endl;
-            LogToFile("[BOSS DEBUG] " + debugMsg);
+        if (it == m_rules.end())
             return true; // Sin regla = permitir
-        }
         rule = it->second;
     }
 
-    std::string ruleMsg = "Regla encontrada - MobID: " + std::to_string(mobId) + 
-                         " MinPartySize: " + std::to_string((int)rule.minPartySize) + 
-                         " RequireParty: " + std::string(rule.requireParty ? "YES" : "NO");
-    std::cout << "[BOSS DEBUG] " << ruleMsg << std::endl;
-    LogToFile("[BOSS DEBUG] " + ruleMsg);
-
     // ESCENARIO CRÍTICO: Sin killer identificado
     if (!killer) {
-        if (mobId == 835) {
-            std::string testMsg = "Killer es NULL - Aplicando política estricta";
-            std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-            LogToFile("[BOSS 835 TEST] " + testMsg);
-        }
-        
-        std::string debugMsg = "Killer es NULL - Bloqueando drop por seguridad";
-        std::cout << "[BOSS DEBUG] " << debugMsg << std::endl;
-        LogToFile("[BOSS DEBUG] " + debugMsg);
-        
         // Política: Si no podemos identificar al killer, aplicar regla estricta
         // Esto previene exploits donde players solos intentan evitar validación
         LogBlockedDrop(mobId, nullptr);
@@ -275,43 +227,9 @@ bool BossPartyValidator::ValidateDrop(uint32_t mobId, CUser* killer)
     bool hasValidParty = true;
     if (rule.requireParty) {
         hasValidParty = HasValidParty(killer, rule.minPartySize);
-    } else {
-        // Si RequireParty = false, siempre permitir
-        if (mobId == 835) {
-            std::string testMsg = "RequireParty = FALSE - Permitiendo daño sin validar party";
-            std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-            LogToFile("[BOSS 835 TEST] " + testMsg);
-        }
     }
-    
-    if (mobId == 835) {
-        int partySize = (killer && killer->party) ? killer->party->userCount : 0;
-        std::string testMsg = "Killer validation - Required: " + std::to_string((int)rule.minPartySize) + 
-                             " KillerParty: " + std::to_string(partySize) + 
-                             " Valid: " + std::string(hasValidParty ? "YES" : "NO");
-        std::cout << "[BOSS 835 TEST] " << testMsg << std::endl;
-        LogToFile("[BOSS 835 TEST] " + testMsg);
-        
-        // Logging adicional para debugging de escenarios complejos
-        if (killer->party) {
-            std::string partyMsg = "Killer pertenece a party con " + std::to_string(killer->party->userCount) + " miembros";
-            std::cout << "[BOSS 835 TEST] " << partyMsg << std::endl;
-            LogToFile("[BOSS 835 TEST] " + partyMsg);
-        } else {
-            std::string noPartyMsg = "Killer NO tiene party";
-            std::cout << "[BOSS 835 TEST] " << noPartyMsg << std::endl;
-            LogToFile("[BOSS 835 TEST] " + noPartyMsg);
-        }
-    }
-
-    std::string finalMsg = "Validación final - HasValidParty: " + std::string(hasValidParty ? "YES" : "NO");
-    std::cout << "[BOSS DEBUG] " << finalMsg << std::endl;
-    LogToFile("[BOSS DEBUG] " + finalMsg);
 
     if (!hasValidParty) {
-        std::string blockMsg = "Party no válida - Bloqueando drop";
-        std::cout << "[BOSS DEBUG] " << blockMsg << std::endl;
-        LogToFile("[BOSS DEBUG] " + blockMsg);
         LogBlockedDrop(mobId, killer);
         
         // Enviar mensaje del sistema al jugador
@@ -323,34 +241,15 @@ bool BossPartyValidator::ValidateDrop(uint32_t mobId, CUser* killer)
                 msg.messageNumber = 2026;    // "Can't restrict character-related issues."
                 
                 NetworkHelper::Send(killer, &msg, sizeof(msg));
-                
-                std::string sendMsg = "Mensaje del sistema 2026 enviado a usuario " + std::to_string(killer->id);
-                std::cout << "[BOSS DEBUG] " << sendMsg << std::endl;
-                LogToFile("[BOSS DEBUG] " + sendMsg);
-            } else {
-                std::string cooldownMsg = "Mensaje en cooldown para usuario " + std::to_string(killer->id) + " (8s)";
-                std::cout << "[BOSS DEBUG] " << cooldownMsg << std::endl;
-                LogToFile("[BOSS DEBUG] " + cooldownMsg);
             }
         }
         catch (...) {
-            std::string errorMsg = "Error al enviar mensaje del sistema";
-            std::cout << "[BOSS ERROR] " << errorMsg << std::endl;
-            LogToFile("[BOSS ERROR] " + errorMsg);
+            LogError("Error al enviar mensaje del sistema");
         }
         
         return false; // Bloquear drop
     }
 
-    if (mobId == 835) {
-        std::string successMsg = "Killer tiene party válida - Permitiendo drops para todos";
-        std::cout << "[BOSS 835 TEST] " << successMsg << std::endl;
-        LogToFile("[BOSS 835 TEST] " + successMsg);
-    }
-
-    std::string allowMsg = "Party válida - Permitiendo drop";
-    std::cout << "[BOSS DEBUG] " << allowMsg << std::endl;
-    LogToFile("[BOSS DEBUG] " + allowMsg);
     return true; // Permitir drop
 }
 
@@ -362,37 +261,21 @@ bool BossPartyValidator::IsBossRequiringParty(uint32_t mobId)
 
 bool BossPartyValidator::HasValidParty(CUser* user, uint8_t minSize)
 {
-    if (!user) {
-        std::cout << "[BOSS 835 TEST] HasValidParty: User is NULL" << std::endl;
+    if (!user)
         return false;
-    }
     
-    if (!user->party) {
-        std::cout << "[BOSS 835 TEST] HasValidParty: User has no party" << std::endl;
+    if (!user->party)
         return false;
-    }
     
     // Contar usuarios activos (no offline/dead)
     int activeMembers = 0;
-    int totalMembers = user->party->userCount;
-    
-    std::cout << "[BOSS 835 TEST] HasValidParty: Analyzing party with " << totalMembers << " total members" << std::endl;
     
     for (int i = 0; i < user->party->userCount && i < 30; ++i) {
         auto& partyUser = user->party->users[i];
-        if (partyUser.user) {
-            if (partyUser.user->status != UserStatus::Death) {
-                activeMembers++;
-                std::cout << "[BOSS 835 TEST] Active member: " << partyUser.user->charName.data() << std::endl;
-            } else {
-                std::cout << "[BOSS 835 TEST] Dead member: " << partyUser.user->charName.data() << std::endl;
-            }
-        } else {
-            std::cout << "[BOSS 835 TEST] Empty party slot at index " << i << std::endl;
+        if (partyUser.user && partyUser.user->status != UserStatus::Death) {
+            activeMembers++;
         }
     }
-    
-    std::cout << "[BOSS 835 TEST] HasValidParty: Active=" << activeMembers << " Required=" << (int)minSize << std::endl;
     
     return activeMembers >= minSize;
 }
@@ -407,58 +290,48 @@ void BossPartyValidator::LogBlockedDrop(uint32_t mobId, CUser* killer)
     localtime_s(&tm_buf, &now_time);
     std::strftime(buf, sizeof(buf), "[%Y-%m-%d %H:%M:%S]", &tm_buf);
 
-    std::cout << buf << " [BossPartyValidator] Drop bloqueado - MobID: " << mobId 
-              << " Player: " << (killer ? killer->charName.data() : "Unknown") 
-              << " PartySize: " << (killer && killer->party ? std::to_string(killer->party->userCount) : "0") 
-              << std::endl;
+    std::string msg = std::string(buf) + " [BossPartyValidator] Drop bloqueado - MobID: " + std::to_string(mobId)
+        + " Player: " + (killer ? killer->charName.data() : "Unknown")
+        + " PartySize: " + (killer && killer->party ? std::to_string(killer->party->userCount) : "0");
+    LogToFile(msg);
 }
 
 bool BossPartyValidator::ConnectDB()
 {
     if (m_hDbc != nullptr) return true;
 
-    std::cout << "[BossPartyValidator] Iniciando conexión a base de datos..." << std::endl;
-
-    // Usar misma conexión que DynamicDropManager
     SQLHENV hEnv = NULL;
     SQLHDBC hDbc = NULL;
 
-    std::cout << "[BossPartyValidator] Allocating environment handle..." << std::endl;
     if (SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &hEnv) != SQL_SUCCESS) {
-        std::cout << "[BossPartyValidator ERROR] Failed to allocate environment handle" << std::endl;
+        LogError("Failed to allocate environment handle");
         return false;
     }
     SQLSetEnvAttr(hEnv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0);
 
-    std::cout << "[BossPartyValidator] Allocating connection handle..." << std::endl;
     if (SQLAllocHandle(SQL_HANDLE_DBC, hEnv, &hDbc) != SQL_SUCCESS) {
-        std::cout << "[BossPartyValidator ERROR] Failed to allocate connection handle" << std::endl;
+        LogError("Failed to allocate connection handle");
         SQLFreeHandle(SQL_HANDLE_ENV, hEnv);
         return false;
     }
 
     std::string connStr = "DRIVER={SQL Server};SERVER=158.69.213.250;DATABASE=PS_GameDefs;UID=lotus;PWD=$2a$13$wr34crwF1vcXtwE8wDrwtunwg9cKVlZN6lJwOHwhByN.pMMNIljIK;";
-    std::cout << "[BossPartyValidator] Attempting connection to: 158.69.213.250" << std::endl;
     
     SQLCHAR szConnStrOut[1024];
     SQLSMALLINT cbConnStrOut;
     
-    std::cout << "[BossPartyValidator] Calling SQLDriverConnect..." << std::endl;
     SQLRETURN ret = SQLDriverConnectA(hDbc, NULL, (SQLCHAR*)connStr.c_str(), SQL_NTS, szConnStrOut, sizeof(szConnStrOut), &cbConnStrOut, SQL_DRIVER_NOPROMPT);
     
     if (!SQL_SUCCEEDED(ret)) {
-        std::cout << "[BossPartyValidator ERROR] Connection failed!" << std::endl;
-        
-        // Obtener error detallado
         SQLCHAR sqlState[6];
         SQLINTEGER nativeError;
         SQLCHAR messageText[256];
         SQLSMALLINT textLength;
         
         if (SQLGetDiagRecA(SQL_HANDLE_DBC, hDbc, 1, sqlState, &nativeError, messageText, sizeof(messageText), &textLength) == SQL_SUCCESS) {
-            std::cout << "[BossPartyValidator ERROR] SQL State: " << sqlState << std::endl;
-            std::cout << "[BossPartyValidator ERROR] Native Error: " << nativeError << std::endl;
-            std::cout << "[BossPartyValidator ERROR] Message: " << messageText << std::endl;
+            LogError("Connection failed - SQL State: " + std::string((char*)sqlState) + " Error: " + std::string((char*)messageText));
+        } else {
+            LogError("Connection failed - Unknown error");
         }
         
         SQLFreeHandle(SQL_HANDLE_DBC, hDbc);
@@ -466,7 +339,7 @@ bool BossPartyValidator::ConnectDB()
         return false;
     }
 
-    std::cout << "[BossPartyValidator] Connection successful!" << std::endl;
+    Log("Conexión a base de datos exitosa");
     m_hEnv = hEnv;
     m_hDbc = hDbc;
     return true;
@@ -505,14 +378,12 @@ void BossPartyValidator::RemoveRule(uint32_t mobId)
 
 void BossPartyValidator::Log(const std::string& message)
 {
-    std::cout << "[BossPartyValidator] " << message << std::endl;
     LogToFile("[BossPartyValidator] " + message);
 }
 
 void BossPartyValidator::LogChange(uint32_t mobId, uint16_t grade, uint32_t rawRate, const std::string& action)
 {
     std::string msg = action + " - MobID: " + std::to_string(mobId) + " Grade: " + std::to_string(grade) + " Rate: " + std::to_string(rawRate);
-    std::cout << "[BossPartyValidator] " << msg << std::endl;
     LogToFile("[BossPartyValidator] " + msg);
 }
 

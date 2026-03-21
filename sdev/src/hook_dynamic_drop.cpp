@@ -136,10 +136,6 @@ namespace dynamic_drop_hook
         // Validar party size - bloquear si no cumple requisitos
         bool allow = BossPartyValidator::ValidateDrop(mobId, attacker);
         if (!allow) {
-            LogHookToFile("[DMG BLOCK] MobID=" + std::to_string(mobId) +
-                " attacker=" + std::to_string(attacker->id) +
-                " oldHP=" + std::to_string(oldHealth) +
-                " newHP=" + std::to_string(newHealth));
             return oldHealth;
         }
 
@@ -151,70 +147,29 @@ namespace dynamic_drop_hook
     // Extrae los valores por referencia si ese mob fue cargado en memoria.
     extern "C" void GetDynamicDrop(MobInfo* info, int itemOrder, uint16_t* outGrade, uint32_t* outRate)
     {
-        std::string hookMsg = "GetDynamicDrop llamado - MobInfo: " + std::to_string(info ? info->mobId : 0) + 
-                             " ItemOrder: " + std::to_string(itemOrder);
-        LogHookToFile("[HOOK DEBUG] " + hookMsg);
-        
         if (!info) {
-            std::string nullMsg = "MobInfo es NULL - Retornando grade=0, rate=0";
-            LogHookToFile("[HOOK DEBUG] " + nullMsg);
             *outGrade = 0;
             *outRate = 0;
             return;
         }
 
         uint32_t realMobId = static_cast<uint32_t>(info->mobId);
-        std::string mobMsg = "Procesando MobID: " + std::to_string(realMobId);
-        LogHookToFile("[HOOK DEBUG] " + mobMsg);
         
-        // BLOQUEO DIRECTO PARA TESTING - MobID 835
-        if (realMobId == 835) {
-            std::string blockMsg = "BLOQUEO DIRECTO: MobID 835 - SIN DROPS (testing)";
-            LogHookToFile("[HOOK DEBUG] " + blockMsg);
-            
-            // Bloqueo agresivo - valores imposibles
-            *outGrade = 0;
-            *outRate = 0;
-            
-            std::string finalMsg = "MobID 835 BLOQUEADO - Grade: 0, Rate: 0";
-            LogHookToFile("[HOOK DEBUG] " + finalMsg);
-            return;
-        }
-        
-        // VALIDACIÓN BOSS PARTY NORMAL para otros mobs
+        // Validación BossParty
         CUser* killer = nullptr; // TODO: Obtener killer si es posible
-        std::string validatorMsg = "Llamando a BossPartyValidator::ValidateDrop con killer=NULL";
-        LogHookToFile("[HOOK DEBUG] " + validatorMsg);
-        
         if (!BossPartyValidator::ValidateDrop(realMobId, killer)) {
-            // Drop bloqueado por validación de party
-            std::string blockMsg = "BossPartyValidator bloqueó el drop - grade=0, rate=0";
-            LogHookToFile("[HOOK DEBUG] " + blockMsg);
             *outGrade = 0;
             *outRate = 0;
             return;
         }
         
-        std::string allowMsg = "BossPartyValidator permitió el drop - Continuando con DynamicDropManager";
-        LogHookToFile("[HOOK DEBUG] " + allowMsg);
-        
-        // CONTINUACIÓN NORMAL DE DYNAMIC DROP
+        // Dynamic Drop lookup
         if (!DynamicDropManager::GetDrop(realMobId, static_cast<uint8_t>(itemOrder), *outGrade, *outRate))
         {
-            // El fallback natural: el C++ no halló drops nuevos. Cae al original pre-carga.
-            std::string fallbackMsg = "DynamicDropManager no tuvo drops - Usando fallback original";
-            LogHookToFile("[HOOK DEBUG] " + fallbackMsg);
+            // Fallback: usar drops originales del servidor
             *outGrade = info->dropInfo[itemOrder].grade;
             *outRate = info->dropInfo[itemOrder].rate;
-        } else {
-            std::string foundMsg = "DynamicDropManager encontró drops - Grade: " + std::to_string(*outGrade) + 
-                                  " Rate: " + std::to_string(*outRate);
-            LogHookToFile("[HOOK DEBUG] " + foundMsg);
         }
-        
-        std::string finalMsg = "GetDynamicDrop finalizado - Grade: " + std::to_string(*outGrade) + 
-                              " Rate: " + std::to_string(*outRate);
-        LogHookToFile("[HOOK DEBUG] " + finalMsg);
     }
 }
 
@@ -250,31 +205,9 @@ void __declspec(naked) naked_0x48D2E1_Safe()
         // Limpiamos los 16 bytes empujados como params a C++
         add esp, 16
         
-        // BLOQUEO AGRESIVO PARA MobID 835
-        // Verificamos si el MobID en esi es 835
-        cmp dword ptr [esi+4], 835  // esi+4 = MobID en MobInfo
-        jne normal_drop
-        
-        // Si es MobID 835, forzamos grade=0 y rate=0
-        movzx eax, word ptr[esp] // AX = Grade (de nuestro C++)
-        cmp eax, 0
-        jne already_blocked
-        
-        // Forzar bloqueo si no estaba bloqueado
-        mov word ptr[esp], 0      // Grade = 0
-        mov dword ptr[esp+4], 0   // Rate = 0
-        
-already_blocked:
-        movzx eax, word ptr[esp] // AX = Grade (ahora 0)
-        mov edx, [esp+4]         // EDX = Rate (ahora 0)
-        jmp return_to_server
-        
-normal_drop:
-        // Ahora recuperamos los resultados de nuestros 8 bytes intocados
+        // Recuperamos los resultados de nuestros 8 bytes
         movzx eax, word ptr[esp] // AX = Nuevo Grade
         mov edx, [esp+4]         // EDX = Nuevo Rate (Escala 10,000)
-        
-return_to_server:
         // Limpiamos nuestro array auxiliar de 8 bytes
         add esp, 8
         
@@ -288,21 +221,14 @@ return_to_server:
 
 void hook::dynamic_drop()
 {
-    LogHookToFile("[HOOK INIT] Inicializando hook dynamic_drop");
-    
-    // Reactivar BossPartyValidator con credenciales correctas
     BossPartyValidator::Init();
-    LogHookToFile("[HOOK INIT] BossPartyValidator::Init ejecutado");
     
     // CMob::GenerateLoot - Desviamos exactamente al momento de pescar y evaluar Drop
-    // EP6 Offset: 0x48D2E1
-    // Ahora incluye validación BossParty integrada
-    LogHookToFile("[HOOK INIT] Aplicando detour en direccion 0x48D2E1");
+    // EP6 Offset: 0x48D2E1 - Incluye validación BossParty integrada
     util::detour((void*)0x48D2E1, naked_0x48D2E1_Safe, 6);
-    LogHookToFile("[HOOK INIT] Detour aplicado");
 
-    // Hook alternativo por build: bloquear daño escribiendo HP (party validation)
-    LogHookToFile("[HOOK INIT] Aplicando detour en direccion 0x004A1A62 (Mob HP write)");
+    // Hook alternativo: bloquear daño escribiendo HP (party validation)
     util::detour((void*)0x004A1A62, naked_0x004A1A62_MobHealthWrite, 6);
-    LogHookToFile("[HOOK INIT] Detour aplicado (Mob HP write)");
+    
+    LogHookToFile("[HOOK INIT] dynamic_drop + BossPartyValidator inicializados");
 }
