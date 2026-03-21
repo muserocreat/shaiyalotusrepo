@@ -128,7 +128,9 @@ void BossPartyValidator::CheckReloadTrigger() {
         }
     } else {
         LogError("La conexión de Reload Trigger falló, reiniciando driver...");
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
         DisconnectDB();
+        return;
     }
     SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
 }

@@ -129,7 +129,9 @@ namespace shaiya {
             }
         } else {
             LogErrorToFile("La conexión de Reload Trigger falló, reiniciando driver...");
+            SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
             DisconnectDB();
+            return;
         }
         SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
     }

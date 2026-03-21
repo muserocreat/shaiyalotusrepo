@@ -130,7 +130,9 @@ namespace shaiya {
             }
         } else {
             LogMallErrorToFile("La conexión de Mall Trigger falló, reiniciando driver...");
+            SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
             DisconnectDB();
+            return;
         }
         SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
     }
